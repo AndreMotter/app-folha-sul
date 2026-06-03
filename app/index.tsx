@@ -93,28 +93,10 @@ export default function Index() {
       </View>
 
       <View style={styles.menu}>
-        <TouchableOpacity 
-          style={styles.mainButton} 
-          onPress={() => router.push('/camera')}
-        >
-          <Text style={styles.buttonEmoji}>📸</Text>
-          <Text style={styles.mainButtonText}>Nova Análise</Text>
-          <Text style={styles.buttonSubText}>Usar câmera em tempo real</Text>
-        </TouchableOpacity>
-
-        <View style={styles.row}>
-          <TouchableOpacity style={styles.secondaryButton} onPress={pickImage}>
-            <Text style={styles.secondaryButtonText}>🖼️ Galeria</Text>
-          </TouchableOpacity>
-          
-          <TouchableOpacity style={styles.secondaryButton} onPress={() => router.push('/results')}>
-            <Text style={styles.secondaryButtonText}>📊 Histórico</Text>
-          </TouchableOpacity>
-        </View>
 
         <View style={styles.divider} />
 
-        <Text style={styles.sectionTitle}>Gerenciamento </Text>
+        <Text style={styles.sectionTitle}>Cadastros </Text>
 
         <View style={styles.row}>
           <TouchableOpacity 
@@ -151,6 +133,8 @@ export default function Index() {
             <Text style={styles.crudButtonText}>Safras</Text>
           </TouchableOpacity>
         </View>
+
+        <Text style={styles.sectionTitle}>Lançamentos </Text>
 
         <TouchableOpacity 
           style={styles.fullCrudButton} 

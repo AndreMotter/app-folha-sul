@@ -1,9 +1,12 @@
 import { FontAwesome } from "@expo/vector-icons";
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as FileSystem from 'expo-file-system/legacy';
+import * as ImagePicker from 'expo-image-picker';
 import { router, Stack } from "expo-router";
 import React, { useEffect, useState } from "react";
-import { ActivityIndicator, Alert, FlatList, Modal, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
+import { ActivityIndicator, Alert, FlatList, Modal, Image as RNImage, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
 import { API_BASE_URL } from "../../constants/api";
+import { analyzeLeafImage } from "../../src/services/aiService";
 
 export default function AnaliseTecnica() {
   const [analises, setAnalises] = useState<any[]>([]);
@@ -27,8 +30,86 @@ export default function AnaliseTecnica() {
   const [observacao, setObservacao] = useState("");
   const [status, setStatus] = useState<number>(1); // 1 = Finalizado, 0 = Pendente
 
+  const [imagensSelecionadas, setImagensSelecionadas] = useState<Array<{
+    uri: string;
+    base64: string;
+    disease: string;
+    confidence: string;
+    recommendation: string;
+  }>>([]);
+  const [analisandoIA, setAnalisandoIA] = useState(false);
+
   const [modalType, setModalType] = useState<"talhao" | "safra" | "usuario" | null>(null);
   const [modalVisible, setModalVisible] = useState(false);
+
+  async function TirarFoto() {
+    const permissionResult = await ImagePicker.requestCameraPermissionsAsync();
+    if (!permissionResult.granted) {
+      Alert.alert("Permissão necessária", "Precisamos de permissão para acessar a câmera!");
+      return;
+    }
+
+    const result = await ImagePicker.launchCameraAsync({
+      allowsEditing: true,
+      aspect: [4, 3],
+      quality: 1,
+    });
+
+    if (!result.canceled) {
+      processarImagem(result.assets[0].uri);
+    }
+  }
+
+  async function EscolherGaleria() {
+    const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!permissionResult.granted) {
+      Alert.alert("Permissão necessária", "Precisamos de permissão para acessar suas fotos!");
+      return;
+    }
+
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      aspect: [4, 3],
+      quality: 1,
+    });
+
+    if (!result.canceled) {
+      processarImagem(result.assets[0].uri);
+    }
+  }
+
+  async function processarImagem(uri: string) {
+    try {
+      setAnalisandoIA(true);
+
+      const base64 = await FileSystem.readAsStringAsync(uri, { encoding: "base64" });
+
+      const aiResult = await analyzeLeafImage(uri);
+
+      const novaImagem = {
+        uri,
+        base64,
+        disease: aiResult.disease,
+        confidence: aiResult.confidence,
+        recommendation: aiResult.recommendation
+      };
+
+      setImagensSelecionadas(prev => [...prev, novaImagem]);
+
+      const numeroFolha = imagensSelecionadas.length + 1;
+      const parecerTexto = `[Parecer IA - Folha #${numeroFolha}]
+- Diagnóstico: ${aiResult.disease} (Confiança: ${aiResult.confidence})
+- Sugestão: ${aiResult.recommendation}`;
+
+      setObservacao(prev => prev ? `${prev}\n\n${parecerTexto}` : parecerTexto);
+    } catch (e) {
+      console.error("Erro ao analisar imagem com IA:", e);
+      Alert.alert("Erro de IA", "Não foi possível realizar o diagnóstico automático de imagem.");
+    } finally {
+      setAnalisandoIA(false);
+    }
+  }
 
   async function ListarAnalises() {
     try {
@@ -113,6 +194,20 @@ export default function AnaliseTecnica() {
     setUsu_login(item.usuario?.usu_login || `ID: ${item.usu_codigo}`);
     setObservacao(item.ant_observacao ?? "");
     setStatus(item.ant_status ?? 1);
+
+    if (item.imagens && item.imagens.length > 0) {
+      setImagensSelecionadas(item.imagens.map((img: any) => ({
+        uri: `data:image/jpeg;base64,${img.ati_imagem}`,
+        base64: img.ati_imagem,
+        disease: "Imagem Salva",
+        confidence: "",
+        recommendation: ""
+      })));
+    } else {
+      setImagensSelecionadas([]);
+    }
+    setAnalisandoIA(false);
+
     setModo("editar");
   }
 
@@ -131,6 +226,8 @@ export default function AnaliseTecnica() {
     setUsu_login("Selecione um Usuário/Técnico");
     setObservacao("");
     setStatus(1);
+    setImagensSelecionadas([]);
+    setAnalisandoIA(false);
   }
 
   function Voltar() {
@@ -151,7 +248,7 @@ export default function AnaliseTecnica() {
       return;
     }
 
-    const payload = {
+    const payload: any = {
       tal_codigo: Number(tal_codigo),
       saf_codigo: Number(saf_codigo),
       usu_codigo: Number(usu_codigo),
@@ -159,6 +256,14 @@ export default function AnaliseTecnica() {
       ant_data_hora: new Date().toISOString(),
       ant_status: Number(status),
     };
+
+    if (imagensSelecionadas.length > 0) {
+      payload.imagens = imagensSelecionadas.map((img, idx) => ({
+        ati_imagem: img.base64,
+        ati_nome_arquivo: `analise_${tal_codigo}_folha_${idx + 1}_${Date.now()}.jpg`,
+        ati_tipo_arquivo: "image/jpeg",
+      }));
+    }
 
     try {
       const token = await AsyncStorage.getItem("token");
@@ -278,9 +383,25 @@ export default function AnaliseTecnica() {
                         </Text>
                       </View>
                     </View>
-                    <Text style={styles.itemSubtitulo}>🌾 {item.talhao?.tal_descricao || `Talhão ID: ${item.tal_codigo}`}</Text>
-                    <Text style={styles.itemMeta}>📅 Safra: {item.safra?.saf_descricao || `Safra ID: ${item.saf_codigo}`}</Text>
-                    <Text style={styles.itemMeta}>👤 Técnico: {item.usuario?.usu_login || `Usuário ID: ${item.usu_codigo}`}</Text>
+
+                    <View style={{ marginTop: 8 }}>
+                      <Text style={styles.itemSubtitulo}>🌾 {item.talhao?.tal_descricao || `Talhão ID: ${item.tal_codigo}`}</Text>
+                      <Text style={styles.itemMeta}>📅 Safra: {item.safra?.saf_descricao || `Safra ID: ${item.saf_codigo}`}</Text>
+                      <Text style={styles.itemMeta}>👤 Técnico: {item.usuario?.usu_login || `Usuário ID: ${item.usu_codigo}`}</Text>
+                      
+                      {item.imagens && item.imagens.length > 0 ? (
+                        <ScrollView horizontal={true} showsHorizontalScrollIndicator={false} style={styles.carouselContainer} contentContainerStyle={{ gap: 8 }}>
+                          {item.imagens.map((img: any, idx: number) => (
+                            <RNImage
+                              key={idx}
+                              source={{ uri: `data:image/jpeg;base64,${img.ati_imagem}` }}
+                              style={styles.itemThumbnailSmall}
+                            />
+                          ))}
+                        </ScrollView>
+                      ) : null}
+                    </View>
+
                     {item.ant_observacao ? (
                       <Text style={styles.itemObs}>💬 "{item.ant_observacao}"</Text>
                     ) : null}
@@ -307,7 +428,7 @@ export default function AnaliseTecnica() {
           </TouchableOpacity>
         </View>
       ) : (
-        <View style={{ flex: 1, justifyContent: "center" }}>
+        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 30 }}>
           <Text style={styles.formTitulo}>
             {modo === "editar" ? "Editar" : "Lançar"} Análise Técnica
           </Text>
@@ -336,12 +457,67 @@ export default function AnaliseTecnica() {
             <FontAwesome name="caret-down" size={18} color="#666" />
           </TouchableOpacity>
 
+          <Text style={styles.label}>Foto da Folha para Análise de IA (opcional):</Text>
+          <View style={styles.imagePickerContainer}>
+            <TouchableOpacity style={styles.imagePickerBtn} onPress={TirarFoto}>
+              <Text style={styles.imagePickerBtnText}>📸 Tirar Foto</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity style={styles.imagePickerBtn} onPress={EscolherGaleria}>
+              <Text style={styles.imagePickerBtnText}>🖼️ Galeria</Text>
+            </TouchableOpacity>
+          </View>
+
+          {analisandoIA && (
+            <View style={styles.iaLoadingContainer}>
+              <ActivityIndicator size="small" color="#2E7D32" />
+              <Text style={styles.iaLoadingText}>IA analisando a folha...</Text>
+            </View>
+          )}
+
+          {imagensSelecionadas.length > 0 && (
+            <View style={styles.imagensListContainer}>
+              <Text style={styles.subLabel}>Imagens e Pareceres da IA ({imagensSelecionadas.length}):</Text>
+              {imagensSelecionadas.map((img, index) => (
+                <View key={index} style={styles.imageCard}>
+                  <RNImage source={{ uri: img.uri }} style={styles.imageCardPreview} />
+                  <View style={styles.imageCardInfo}>
+                    <Text style={styles.imageCardTitle}>🍃 Folha #{index + 1}</Text>
+                    {img.disease !== "Imagem Salva" ? (
+                      <>
+                        <Text style={styles.imageCardText}>
+                          <Text style={{ fontWeight: "bold" }}>Doença: </Text>{img.disease}
+                        </Text>
+                        <Text style={styles.imageCardText}>
+                          <Text style={{ fontWeight: "bold" }}>Confiança: </Text>{img.confidence}
+                        </Text>
+                        <Text style={styles.imageCardText}>
+                          <Text style={{ fontWeight: "bold" }}>Sugestão: </Text>{img.recommendation}
+                        </Text>
+                      </>
+                    ) : (
+                      <Text style={styles.imageCardText}>Imagem salva no banco de dados.</Text>
+                    )}
+                    <TouchableOpacity 
+                      style={styles.removerCardBtn} 
+                      onPress={() => {
+                        setImagensSelecionadas(prev => prev.filter((_, i) => i !== index));
+                      }}
+                    >
+                      <Text style={styles.removerCardBtnText}>🗑️ Remover</Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              ))}
+            </View>
+          )}
+
           <Text style={styles.label}>Observações Técnicas (opcional):</Text>
           <TextInput 
-            style={[styles.input, { height: 80, textAlignVertical: "top" }]} 
-            placeholder="Digite detalhes observados no campo (ex: presença de manchas foliares)" 
+            style={[styles.input, { height: 120, textAlignVertical: "top" }]} 
+            placeholder="Digite detalhes observados no campo ou aguarde a análise de IA" 
             multiline
-            numberOfLines={3}
+            numberOfLines={4}
             value={observacao} 
             onChangeText={setObservacao} 
           />
@@ -373,7 +549,7 @@ export default function AnaliseTecnica() {
           >
             <Text style={styles.txtBtn}>Voltar para Lista</Text>
           </TouchableOpacity>
-        </View>
+        </ScrollView>
       )}
 
       {/* MODAL DE SELEÇÃO DINÂMICA */}
@@ -630,5 +806,140 @@ const styles = StyleSheet.create({
     color: "#FFF",
     fontWeight: "bold",
     fontSize: 16,
+  },
+  imagePickerContainer: {
+    flexDirection: "row",
+    gap: 15,
+    marginBottom: 12,
+  },
+  imagePickerBtn: {
+    flex: 1,
+    backgroundColor: "#E8F5E9",
+    borderWidth: 1,
+    borderColor: "#A5D6A7",
+    padding: 12,
+    borderRadius: 8,
+    alignItems: "center",
+  },
+  imagePickerBtnText: {
+    color: "#2E7D32",
+    fontWeight: "bold",
+    fontSize: 14,
+  },
+  iaLoadingContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 10,
+    backgroundColor: "#E8F5E9",
+    padding: 10,
+    borderRadius: 8,
+    marginBottom: 12,
+  },
+  iaLoadingText: {
+    color: "#2E7D32",
+    fontWeight: "bold",
+    fontSize: 14,
+  },
+  previewContainer: {
+    alignItems: "center",
+    marginBottom: 15,
+    backgroundColor: "#FFF",
+    padding: 10,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "#ccc",
+  },
+  imagePreview: {
+    width: "100%",
+    height: 180,
+    borderRadius: 8,
+    resizeMode: "cover",
+  },
+  removeImageBtn: {
+    marginTop: 8,
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    backgroundColor: "#FFEBEE",
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: "#FFCDD2",
+  },
+  removeImageBtnText: {
+    color: "#C62828",
+    fontSize: 13,
+    fontWeight: "bold",
+  },
+  itemThumbnail: {
+    width: 70,
+    height: 70,
+    borderRadius: 8,
+    backgroundColor: "#DDD",
+    alignSelf: "center",
+  },
+  carouselContainer: {
+    marginTop: 8,
+    flexDirection: "row",
+  },
+  itemThumbnailSmall: {
+    width: 60,
+    height: 60,
+    borderRadius: 6,
+    backgroundColor: "#DDD",
+  },
+  imagensListContainer: {
+    marginBottom: 15,
+  },
+  subLabel: {
+    fontWeight: "bold",
+    color: "#555",
+    fontSize: 13,
+    marginBottom: 8,
+  },
+  imageCard: {
+    flexDirection: "row",
+    backgroundColor: "#FFF",
+    borderWidth: 1,
+    borderColor: "#E0E0E0",
+    borderRadius: 10,
+    padding: 10,
+    marginBottom: 10,
+    gap: 12,
+    alignItems: "center",
+  },
+  imageCardPreview: {
+    width: 80,
+    height: 80,
+    borderRadius: 8,
+    resizeMode: "cover",
+  },
+  imageCardInfo: {
+    flex: 1,
+    gap: 2,
+  },
+  imageCardTitle: {
+    fontSize: 15,
+    fontWeight: "bold",
+    color: "#2E7D32",
+    marginBottom: 2,
+  },
+  imageCardText: {
+    fontSize: 13,
+    color: "#333",
+  },
+  removerCardBtn: {
+    marginTop: 6,
+    alignSelf: "flex-start",
+    backgroundColor: "#FFEBEE",
+    paddingVertical: 4,
+    paddingHorizontal: 10,
+    borderRadius: 5,
+    borderWidth: 1,
+    borderColor: "#FFCDD2",
+  },
+  removerCardBtnText: {
+    color: "#C62828",
+    fontSize: 12,
+    fontWeight: "bold",
   },
 });
