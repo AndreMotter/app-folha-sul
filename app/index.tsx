@@ -125,12 +125,22 @@ export default function Index() {
             <Text style={styles.crudButtonText}>Talhões</Text>
           </TouchableOpacity>
           
-          <TouchableOpacity 
-            style={styles.crudButton} 
+          <TouchableOpacity
+            style={styles.crudButton}
             onPress={() => router.push('/safra/fsu_safra')}
           >
             <Text style={styles.crudButtonEmoji}>📅</Text>
             <Text style={styles.crudButtonText}>Safras</Text>
+          </TouchableOpacity>
+        </View>
+
+        <View style={styles.row}>
+          <TouchableOpacity
+            style={styles.crudButton}
+            onPress={() => router.push('/parcela/fsu_parcela')}
+          >
+            <Text style={styles.crudButtonEmoji}>🌱</Text>
+            <Text style={styles.crudButtonText}>Parcelas</Text>
           </TouchableOpacity>
         </View>
 

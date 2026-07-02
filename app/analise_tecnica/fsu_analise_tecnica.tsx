@@ -1,6 +1,6 @@
 import { FontAwesome } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import * as FileSystem from "expo-file-system/legacy";
+import * as ImageManipulator from "expo-image-manipulator";
 import * as ImagePicker from "expo-image-picker";
 import { router, Stack } from "expo-router";
 import React, { useEffect, useState } from "react";
@@ -22,7 +22,7 @@ import { analyzeLeafImage } from "../../src/services/aiService";
 
 export default function AnaliseTecnica() {
   const [analises, setAnalises] = useState<any[]>([]);
-  const [talhoes, setTalhoes] = useState<any[]>([]);
+  const [parcelas, setParcelas] = useState<any[]>([]);
   const [safras, setSafras] = useState<any[]>([]);
   const [usuarios, setUsuarios] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -30,8 +30,8 @@ export default function AnaliseTecnica() {
 
   const [ant_codigo, setAnt_codigo] = useState<number | null>(null);
 
-  const [tal_codigo, setTal_codigo] = useState<number | null>(null);
-  const [tal_descricao, setTal_descricao] = useState("Selecione um Talhão");
+  const [par_codigo, setPar_codigo] = useState<number | null>(null);
+  const [par_descricao, setPar_descricao] = useState("Selecione uma Parcela");
 
   const [saf_codigo, setSaf_codigo] = useState<number | null>(null);
   const [saf_descricao, setSaf_descricao] = useState("Selecione uma Safra");
@@ -55,7 +55,7 @@ export default function AnaliseTecnica() {
   const [analisandoIA, setAnalisandoIA] = useState(false);
 
   const [modalType, setModalType] = useState<
-    "talhao" | "safra" | "usuario" | null
+    "parcela" | "safra" | "usuario" | null
   >(null);
   const [modalVisible, setModalVisible] = useState(false);
 
@@ -107,15 +107,22 @@ export default function AnaliseTecnica() {
     try {
       setAnalisandoIA(true);
 
-      const base64 = await FileSystem.readAsStringAsync(uri, {
-        encoding: "base64",
-      });
+      // Reduz e comprime a imagem antes de enviar, evitando estourar o limite de payload do servidor
+      const imagemTratada = await ImageManipulator.manipulateAsync(
+        uri,
+        [{ resize: { width: 1024 } }],
+        {
+          compress: 0.6,
+          format: ImageManipulator.SaveFormat.JPEG,
+          base64: true,
+        },
+      );
 
-      const aiResult = await analyzeLeafImage(uri);
+      const aiResult = await analyzeLeafImage(imagemTratada.uri);
 
       const novaImagem = {
-        uri,
-        base64,
+        uri: imagemTratada.uri,
+        base64: imagemTratada.base64 ?? "",
         disease: aiResult.disease,
         confidence: aiResult.confidence,
         severity: aiResult.severity,
@@ -174,8 +181,8 @@ export default function AnaliseTecnica() {
     try {
       const token = await AsyncStorage.getItem("token");
 
-      const [respTalhao, respSafra, respUsuario] = await Promise.all([
-        fetch(API_BASE_URL + "/fsu-talhao/ListarTodos", {
+      const [respParcela, respSafra, respUsuario] = await Promise.all([
+        fetch(API_BASE_URL + "/fsu-parcela/ListarTodos", {
           headers: { Authorization: "Bearer " + token },
         }),
         fetch(API_BASE_URL + "/fsu-safra/ListarTodos", {
@@ -186,13 +193,13 @@ export default function AnaliseTecnica() {
         }),
       ]);
 
-      const [dataTalhao, dataSafra, dataUsuario] = await Promise.all([
-        respTalhao.json(),
+      const [dataParcela, dataSafra, dataUsuario] = await Promise.all([
+        respParcela.json(),
         respSafra.json(),
         respUsuario.json(),
       ]);
 
-      setTalhoes(dataTalhao);
+      setParcelas(dataParcela);
       setSafras(dataSafra);
       setUsuarios(dataUsuario);
     } catch (e) {
@@ -200,15 +207,15 @@ export default function AnaliseTecnica() {
     }
   }
 
-  function AbrirModal(type: "talhao" | "safra" | "usuario") {
+  function AbrirModal(type: "parcela" | "safra" | "usuario") {
     setModalType(type);
     setModalVisible(true);
   }
 
   function SelecionarItem(item: any) {
-    if (modalType === "talhao") {
-      setTal_codigo(item.tal_codigo);
-      setTal_descricao(item.tal_descricao);
+    if (modalType === "parcela") {
+      setPar_codigo(item.par_codigo);
+      setPar_descricao(item.par_descricao);
     } else if (modalType === "safra") {
       setSaf_codigo(item.saf_codigo);
       setSaf_descricao(item.saf_descricao);
@@ -234,8 +241,8 @@ export default function AnaliseTecnica() {
 
   function AbrirEditarAnalise(item: any) {
     setAnt_codigo(item.ant_codigo);
-    setTal_codigo(item.tal_codigo);
-    setTal_descricao(item.talhao?.tal_descricao || `ID: ${item.tal_codigo}`);
+    setPar_codigo(item.par_codigo);
+    setPar_descricao(item.parcela?.par_descricao || `ID: ${item.par_codigo}`);
     setSaf_codigo(item.saf_codigo);
     setSaf_descricao(item.safra?.saf_descricao || `ID: ${item.saf_codigo}`);
     setUsu_codigo(item.usu_codigo);
@@ -268,8 +275,8 @@ export default function AnaliseTecnica() {
 
   function LimparAnalise() {
     setAnt_codigo(null);
-    setTal_codigo(null);
-    setTal_descricao("Selecione um Talhão");
+    setPar_codigo(null);
+    setPar_descricao("Selecione uma Parcela");
     setSaf_codigo(null);
     setSaf_descricao("Selecione uma Safra");
     setUsu_codigo(null);
@@ -285,8 +292,8 @@ export default function AnaliseTecnica() {
   }
 
   async function SalvarAnalise() {
-    if (!tal_codigo) {
-      Alert.alert("Atenção", "Selecione o Talhão!");
+    if (!par_codigo) {
+      Alert.alert("Atenção", "Selecione a Parcela!");
       return;
     }
     if (!saf_codigo) {
@@ -299,7 +306,7 @@ export default function AnaliseTecnica() {
     }
 
     const payload: any = {
-      tal_codigo: Number(tal_codigo),
+      par_codigo: Number(par_codigo),
       saf_codigo: Number(saf_codigo),
       usu_codigo: Number(usu_codigo),
       ant_observacao: observacao.trim() ? observacao : null,
@@ -310,7 +317,7 @@ export default function AnaliseTecnica() {
     if (imagensSelecionadas.length > 0) {
       payload.imagens = imagensSelecionadas.map((img, idx) => ({
         ati_imagem: img.base64,
-        ati_nome_arquivo: `analise_${tal_codigo}_folha_${idx + 1}_${Date.now()}.jpg`,
+        ati_nome_arquivo: `analise_${par_codigo}_folha_${idx + 1}_${Date.now()}.jpg`,
         ati_tipo_arquivo: "image/jpeg",
       }));
     }
@@ -477,9 +484,13 @@ export default function AnaliseTecnica() {
 
                     <View style={{ marginTop: 8 }}>
                       <Text style={styles.itemSubtitulo}>
-                        🌾{" "}
-                        {item.talhao?.tal_descricao ||
-                          `Talhão ID: ${item.tal_codigo}`}
+                        🌱{" "}
+                        {item.parcela?.par_descricao ||
+                          `Parcela ID: ${item.par_codigo}`}
+                      </Text>
+                      <Text style={styles.itemMeta}>
+                        🌾 Talhão:{" "}
+                        {item.parcela?.talhao?.tal_descricao || "-"}
                       </Text>
                       <Text style={styles.itemMeta}>
                         📅 Safra:{" "}
@@ -556,19 +567,19 @@ export default function AnaliseTecnica() {
             {modo === "editar" ? "Editar" : "Lançar"} Análise Técnica
           </Text>
 
-          <Text style={styles.label}>Talhão Vinculado:</Text>
+          <Text style={styles.label}>Parcela Vinculada:</Text>
           <TouchableOpacity
             style={styles.selector}
-            onPress={() => AbrirModal("talhao")}
+            onPress={() => AbrirModal("parcela")}
           >
             <Text
               style={
-                tal_codigo
+                par_codigo
                   ? styles.selectorTextSelected
                   : styles.selectorTextPlaceholder
               }
             >
-              {tal_descricao}
+              {par_descricao}
             </Text>
             <FontAwesome name="caret-down" size={18} color="#666" />
           </TouchableOpacity>
@@ -762,28 +773,28 @@ export default function AnaliseTecnica() {
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
             <Text style={styles.modalTitulo}>
-              {modalType === "talhao"
-                ? "Selecione o Talhão"
+              {modalType === "parcela"
+                ? "Selecione a Parcela"
                 : modalType === "safra"
                   ? "Selecione a Safra"
                   : "Selecione o Técnico"}
             </Text>
 
-            {modalType === "talhao" && (
+            {modalType === "parcela" && (
               <FlatList
-                data={talhoes}
-                keyExtractor={(item) => item.tal_codigo.toString()}
+                data={parcelas}
+                keyExtractor={(item) => item.par_codigo.toString()}
                 renderItem={({ item }) => (
                   <TouchableOpacity
                     style={styles.modalItem}
                     onPress={() => SelecionarItem(item)}
                   >
                     <Text style={styles.modalItemText}>
-                      {item.tal_descricao}
+                      {item.par_descricao}
                     </Text>
                     <Text style={styles.modalItemSub}>
-                      Propriedade ID: {item.pro_codigo} •{" "}
-                      {item.tal_area_hectares} ha
+                      Talhão: {item.talhao?.tal_descricao || `ID: ${item.tal_codigo}`} •{" "}
+                      {item.par_area_hectares} ha
                     </Text>
                   </TouchableOpacity>
                 )}
