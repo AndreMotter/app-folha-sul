@@ -2,6 +2,7 @@ import * as FileSystem from 'expo-file-system/legacy';
 
 // Adicionamos a tipagem que estava faltando
 export type AiResult = {
+  severity: string, 
   disease: string;
   confidence: string;
   recommendation: string;
@@ -24,14 +25,14 @@ export async function analyzeLeafImage(imageUri: string): Promise<AiResult> {
       },
       body: JSON.stringify({
         // IMPORTANTE: Manter o modelo vision para fotos
-        model: "llama-3.2-11b-vision-preview", 
+        model: "meta-llama/llama-4-scout-17b-16e-instruct",
         messages: [
           {
             role: "user",
             content: [
               { 
                 type: "text", 
-                text: "Analise esta folha de plantação. Identifique a doença ou se está saudável. Retorne APENAS um JSON: {\"disease\": \"nome\", \"confidence\": \"XX%\", \"recommendation\": \"dica curta\"}" 
+                text: "Você é um avaliador de severidade foliar. Analise a imagem da folha e foque principalmente em estimar o percentual de severidade, ou seja, a porcentagem aproximada da área visível da folha afetada por sintomas como manchas, necrose, ferrugem, amarelamento, queima, lesões ou deformações. Identifique também a possível doença ou informe se a folha está saudável. Retorne APENAS um JSON válido neste formato: {\"severity\": \"XX%\", \"disease\": \"nome ou saudável\", \"confidence\": \"XX%\", \"recommendation\": \"dica curta\"}"
               },
               { 
                 type: "image_url", 
@@ -41,7 +42,7 @@ export async function analyzeLeafImage(imageUri: string): Promise<AiResult> {
           }
         ],
         // Não usamos stream: true aqui para recebermos o JSON de uma vez só
-        temperature: 0.2, 
+        temperature: 0.2,
         response_format: { type: "json_object" }
       })
     });
@@ -61,6 +62,7 @@ export async function analyzeLeafImage(imageUri: string): Promise<AiResult> {
   } catch (error) {
     console.error("❌ Erro no aiService (Groq):", error);
     return {
+      severity: '-',
       disease: 'Erro na análise',
       confidence: '-',
       recommendation: 'Falha ao conectar com a API da Groq. Verifique sua chave ou conexão.'

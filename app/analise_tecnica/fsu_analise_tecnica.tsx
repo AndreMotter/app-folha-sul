@@ -1,10 +1,22 @@
 import { FontAwesome } from "@expo/vector-icons";
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import * as FileSystem from 'expo-file-system/legacy';
-import * as ImagePicker from 'expo-image-picker';
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import * as FileSystem from "expo-file-system/legacy";
+import * as ImagePicker from "expo-image-picker";
 import { router, Stack } from "expo-router";
 import React, { useEffect, useState } from "react";
-import { ActivityIndicator, Alert, FlatList, Modal, Image as RNImage, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
+import {
+  ActivityIndicator,
+  Alert,
+  FlatList,
+  Modal,
+  Image as RNImage,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
+} from "react-native";
 import { API_BASE_URL } from "../../constants/api";
 import { analyzeLeafImage } from "../../src/services/aiService";
 
@@ -17,7 +29,7 @@ export default function AnaliseTecnica() {
   const [modo, setModo] = useState<"lista" | "novo" | "editar">("lista");
 
   const [ant_codigo, setAnt_codigo] = useState<number | null>(null);
-  
+
   const [tal_codigo, setTal_codigo] = useState<number | null>(null);
   const [tal_descricao, setTal_descricao] = useState("Selecione um Talhão");
 
@@ -30,22 +42,30 @@ export default function AnaliseTecnica() {
   const [observacao, setObservacao] = useState("");
   const [status, setStatus] = useState<number>(1); // 1 = Finalizado, 0 = Pendente
 
-  const [imagensSelecionadas, setImagensSelecionadas] = useState<Array<{
-    uri: string;
-    base64: string;
-    disease: string;
-    confidence: string;
-    recommendation: string;
-  }>>([]);
+  const [imagensSelecionadas, setImagensSelecionadas] = useState<
+    Array<{
+      uri: string;
+      base64: string;
+      disease: string;
+      confidence: string;
+      severity: string;
+      recommendation: string;
+    }>
+  >([]);
   const [analisandoIA, setAnalisandoIA] = useState(false);
 
-  const [modalType, setModalType] = useState<"talhao" | "safra" | "usuario" | null>(null);
+  const [modalType, setModalType] = useState<
+    "talhao" | "safra" | "usuario" | null
+  >(null);
   const [modalVisible, setModalVisible] = useState(false);
 
   async function TirarFoto() {
     const permissionResult = await ImagePicker.requestCameraPermissionsAsync();
     if (!permissionResult.granted) {
-      Alert.alert("Permissão necessária", "Precisamos de permissão para acessar a câmera!");
+      Alert.alert(
+        "Permissão necessária",
+        "Precisamos de permissão para acessar a câmera!",
+      );
       return;
     }
 
@@ -61,9 +81,13 @@ export default function AnaliseTecnica() {
   }
 
   async function EscolherGaleria() {
-    const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    const permissionResult =
+      await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!permissionResult.granted) {
-      Alert.alert("Permissão necessária", "Precisamos de permissão para acessar suas fotos!");
+      Alert.alert(
+        "Permissão necessária",
+        "Precisamos de permissão para acessar suas fotos!",
+      );
       return;
     }
 
@@ -83,7 +107,9 @@ export default function AnaliseTecnica() {
     try {
       setAnalisandoIA(true);
 
-      const base64 = await FileSystem.readAsStringAsync(uri, { encoding: "base64" });
+      const base64 = await FileSystem.readAsStringAsync(uri, {
+        encoding: "base64",
+      });
 
       const aiResult = await analyzeLeafImage(uri);
 
@@ -92,20 +118,27 @@ export default function AnaliseTecnica() {
         base64,
         disease: aiResult.disease,
         confidence: aiResult.confidence,
-        recommendation: aiResult.recommendation
+        severity: aiResult.severity,
+        recommendation: aiResult.recommendation,
       };
 
-      setImagensSelecionadas(prev => [...prev, novaImagem]);
+      setImagensSelecionadas((prev) => [...prev, novaImagem]);
 
       const numeroFolha = imagensSelecionadas.length + 1;
       const parecerTexto = `[Parecer IA - Folha #${numeroFolha}]
-- Diagnóstico: ${aiResult.disease} (Confiança: ${aiResult.confidence})
-- Sugestão: ${aiResult.recommendation}`;
+      - Severidade: ${aiResult.severity}
+      - Diagnóstico: ${aiResult.disease} (Confiança: ${aiResult.confidence})
+      - Sugestão: ${aiResult.recommendation}`;
 
-      setObservacao(prev => prev ? `${prev}\n\n${parecerTexto}` : parecerTexto);
+      setObservacao((prev) =>
+        prev ? `${prev}\n\n${parecerTexto}` : parecerTexto,
+      );
     } catch (e) {
       console.error("Erro ao analisar imagem com IA:", e);
-      Alert.alert("Erro de IA", "Não foi possível realizar o diagnóstico automático de imagem.");
+      Alert.alert(
+        "Erro de IA",
+        "Não foi possível realizar o diagnóstico automático de imagem.",
+      );
     } finally {
       setAnalisandoIA(false);
     }
@@ -114,9 +147,12 @@ export default function AnaliseTecnica() {
   async function ListarAnalises() {
     try {
       const token = await AsyncStorage.getItem("token");
-      const resp = await fetch(API_BASE_URL + "/fsu-analise-tecnica/ListarTodos", {
-        headers: { Authorization: "Bearer " + token },
-      });
+      const resp = await fetch(
+        API_BASE_URL + "/fsu-analise-tecnica/ListarTodos",
+        {
+          headers: { Authorization: "Bearer " + token },
+        },
+      );
 
       if (resp.status === 401) {
         Alert.alert("Sessão Expirada", "Por favor, faça login novamente.");
@@ -137,11 +173,17 @@ export default function AnaliseTecnica() {
   async function ListarSeletores() {
     try {
       const token = await AsyncStorage.getItem("token");
-      
+
       const [respTalhao, respSafra, respUsuario] = await Promise.all([
-        fetch(API_BASE_URL + "/fsu-talhao/ListarTodos", { headers: { Authorization: "Bearer " + token } }),
-        fetch(API_BASE_URL + "/fsu-safra/ListarTodos", { headers: { Authorization: "Bearer " + token } }),
-        fetch(API_BASE_URL + "/fsu-usuario/ListarTodos", { headers: { Authorization: "Bearer " + token } }),
+        fetch(API_BASE_URL + "/fsu-talhao/ListarTodos", {
+          headers: { Authorization: "Bearer " + token },
+        }),
+        fetch(API_BASE_URL + "/fsu-safra/ListarTodos", {
+          headers: { Authorization: "Bearer " + token },
+        }),
+        fetch(API_BASE_URL + "/fsu-usuario/ListarTodos", {
+          headers: { Authorization: "Bearer " + token },
+        }),
       ]);
 
       const [dataTalhao, dataSafra, dataUsuario] = await Promise.all([
@@ -181,7 +223,13 @@ export default function AnaliseTecnica() {
     if (!isoString) return "-";
     const date = new Date(isoString);
     if (isNaN(date.getTime())) return "-";
-    return date.toLocaleString("pt-BR", { hour: "2-digit", minute: "2-digit", day: "2-digit", month: "2-digit", year: "numeric" });
+    return date.toLocaleString("pt-BR", {
+      hour: "2-digit",
+      minute: "2-digit",
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+    });
   }
 
   function AbrirEditarAnalise(item: any) {
@@ -196,13 +244,15 @@ export default function AnaliseTecnica() {
     setStatus(item.ant_status ?? 1);
 
     if (item.imagens && item.imagens.length > 0) {
-      setImagensSelecionadas(item.imagens.map((img: any) => ({
-        uri: `data:image/jpeg;base64,${img.ati_imagem}`,
-        base64: img.ati_imagem,
-        disease: "Imagem Salva",
-        confidence: "",
-        recommendation: ""
-      })));
+      setImagensSelecionadas(
+        item.imagens.map((img: any) => ({
+          uri: `data:image/jpeg;base64,${img.ati_imagem}`,
+          base64: img.ati_imagem,
+          disease: "Imagem Salva",
+          confidence: "",
+          recommendation: "",
+        })),
+      );
     } else {
       setImagensSelecionadas([]);
     }
@@ -233,7 +283,7 @@ export default function AnaliseTecnica() {
   function Voltar() {
     router.replace("/");
   }
-  
+
   async function SalvarAnalise() {
     if (!tal_codigo) {
       Alert.alert("Atenção", "Selecione o Talhão!");
@@ -272,12 +322,12 @@ export default function AnaliseTecnica() {
           API_BASE_URL + `/fsu-analise-tecnica/Alterar/${ant_codigo}`,
           {
             method: "PATCH",
-            headers: { 
-              "Content-Type": "application/json", 
-              Authorization: "Bearer " + token  
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: "Bearer " + token,
             },
             body: JSON.stringify(payload),
-          }
+          },
         );
 
         if (!resp.ok) {
@@ -287,9 +337,9 @@ export default function AnaliseTecnica() {
       } else {
         const resp = await fetch(API_BASE_URL + "/fsu-analise-tecnica/Salvar", {
           method: "POST",
-          headers: { 
-            "Content-Type": "application/json", 
-            Authorization: "Bearer " + token  
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: "Bearer " + token,
           },
           body: JSON.stringify(payload),
         });
@@ -325,20 +375,23 @@ export default function AnaliseTecnica() {
                 {
                   method: "DELETE",
                   headers: { Authorization: "Bearer " + token },
-                }
+                },
               );
 
               if (!resp.ok) {
-                Alert.alert("Erro", "Não foi possível excluir a análise técnica.");
+                Alert.alert(
+                  "Erro",
+                  "Não foi possível excluir a análise técnica.",
+                );
               }
 
               ListarAnalises();
             } catch (e) {
               Alert.alert("Erro", "Não foi possível excluir.");
             }
-          }
-        }
-      ]
+          },
+        },
+      ],
     );
   }
 
@@ -349,25 +402,37 @@ export default function AnaliseTecnica() {
 
   return (
     <View style={styles.container}>
-      <Stack.Screen 
+      <Stack.Screen
         options={{
-          title: modo === "lista" ? "📋 Análises Técnicas" : modo === "editar" ? "✏️ Editar Análise" : "➕ Nova Análise",
-          headerStyle: { backgroundColor: '#2E7D32' },
-          headerTintColor: '#fff',
-          headerTitleStyle: { fontWeight: 'bold' },
+          title:
+            modo === "lista"
+              ? "📋 Análises Técnicas"
+              : modo === "editar"
+                ? "✏️ Editar Análise"
+                : "➕ Nova Análise",
+          headerStyle: { backgroundColor: "#2E7D32" },
+          headerTintColor: "#fff",
+          headerTitleStyle: { fontWeight: "bold" },
         }}
       />
 
       {modo === "lista" ? (
         <View style={{ flex: 1 }}>
-          <TouchableOpacity style={styles.botaoIncluir} onPress={() => AbrirIncluirAnalise()} >
+          <TouchableOpacity
+            style={styles.botaoIncluir}
+            onPress={() => AbrirIncluirAnalise()}
+          >
             <Text style={styles.txtBtnIncluir}>
               <FontAwesome name="plus" size={16} /> Nova Análise Técnica
             </Text>
           </TouchableOpacity>
 
           {loading ? (
-            <ActivityIndicator size="large" color="#2E7D32" style={{ marginTop: 20 }} />
+            <ActivityIndicator
+              size="large"
+              color="#2E7D32"
+              style={{ marginTop: 20 }}
+            />
           ) : (
             <FlatList
               data={analises}
@@ -375,26 +440,71 @@ export default function AnaliseTecnica() {
               renderItem={({ item }) => (
                 <View style={styles.item}>
                   <View style={{ flex: 1 }}>
-                    <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
-                      <Text style={styles.itemTitulo}>ID: {item.ant_codigo}</Text>
-                      <View style={[styles.statusBadge, { backgroundColor: item.ant_status === 1 ? "#E8F5E9" : "#FFF8E1" }]}>
-                        <Text style={[styles.statusText, { color: item.ant_status === 1 ? "#2E7D32" : "#F57F17" }]}>
-                          {item.ant_status === 1 ? "Finalizado" : "Em Andamento"}
+                    <View
+                      style={{
+                        flexDirection: "row",
+                        alignItems: "center",
+                        gap: 10,
+                      }}
+                    >
+                      <Text style={styles.itemTitulo}>
+                        ID: {item.ant_codigo}
+                      </Text>
+                      <View
+                        style={[
+                          styles.statusBadge,
+                          {
+                            backgroundColor:
+                              item.ant_status === 1 ? "#E8F5E9" : "#FFF8E1",
+                          },
+                        ]}
+                      >
+                        <Text
+                          style={[
+                            styles.statusText,
+                            {
+                              color:
+                                item.ant_status === 1 ? "#2E7D32" : "#F57F17",
+                            },
+                          ]}
+                        >
+                          {item.ant_status === 1
+                            ? "Finalizado"
+                            : "Em Andamento"}
                         </Text>
                       </View>
                     </View>
 
                     <View style={{ marginTop: 8 }}>
-                      <Text style={styles.itemSubtitulo}>🌾 {item.talhao?.tal_descricao || `Talhão ID: ${item.tal_codigo}`}</Text>
-                      <Text style={styles.itemMeta}>📅 Safra: {item.safra?.saf_descricao || `Safra ID: ${item.saf_codigo}`}</Text>
-                      <Text style={styles.itemMeta}>👤 Técnico: {item.usuario?.usu_login || `Usuário ID: ${item.usu_codigo}`}</Text>
-                      
+                      <Text style={styles.itemSubtitulo}>
+                        🌾{" "}
+                        {item.talhao?.tal_descricao ||
+                          `Talhão ID: ${item.tal_codigo}`}
+                      </Text>
+                      <Text style={styles.itemMeta}>
+                        📅 Safra:{" "}
+                        {item.safra?.saf_descricao ||
+                          `Safra ID: ${item.saf_codigo}`}
+                      </Text>
+                      <Text style={styles.itemMeta}>
+                        👤 Técnico:{" "}
+                        {item.usuario?.usu_login ||
+                          `Usuário ID: ${item.usu_codigo}`}
+                      </Text>
+
                       {item.imagens && item.imagens.length > 0 ? (
-                        <ScrollView horizontal={true} showsHorizontalScrollIndicator={false} style={styles.carouselContainer} contentContainerStyle={{ gap: 8 }}>
+                        <ScrollView
+                          horizontal={true}
+                          showsHorizontalScrollIndicator={false}
+                          style={styles.carouselContainer}
+                          contentContainerStyle={{ gap: 8 }}
+                        >
                           {item.imagens.map((img: any, idx: number) => (
                             <RNImage
                               key={idx}
-                              source={{ uri: `data:image/jpeg;base64,${img.ati_imagem}` }}
+                              source={{
+                                uri: `data:image/jpeg;base64,${img.ati_imagem}`,
+                              }}
                               style={styles.itemThumbnailSmall}
                             />
                           ))}
@@ -403,17 +513,27 @@ export default function AnaliseTecnica() {
                     </View>
 
                     {item.ant_observacao ? (
-                      <Text style={styles.itemObs}>💬 "{item.ant_observacao}"</Text>
+                      <Text style={styles.itemObs}>
+                        💬 "{item.ant_observacao}"
+                      </Text>
                     ) : null}
-                    <Text style={styles.itemData}>⏰ Realizada em: {formatarData(item.ant_data_hora)}</Text>
+                    <Text style={styles.itemData}>
+                      ⏰ Realizada em: {formatarData(item.ant_data_hora)}
+                    </Text>
                   </View>
 
                   <View style={styles.itemBotoes}>
-                    <TouchableOpacity onPress={() => AbrirEditarAnalise(item)} style={styles.acaoBotao}>
+                    <TouchableOpacity
+                      onPress={() => AbrirEditarAnalise(item)}
+                      style={styles.acaoBotao}
+                    >
                       <FontAwesome name="edit" size={20} color="#2E7D32" />
                     </TouchableOpacity>
 
-                    <TouchableOpacity onPress={() => ExcluirAnalise(item.ant_codigo)} style={styles.acaoBotao}>
+                    <TouchableOpacity
+                      onPress={() => ExcluirAnalise(item.ant_codigo)}
+                      style={styles.acaoBotao}
+                    >
                       <FontAwesome name="trash" size={20} color="#D32F2F" />
                     </TouchableOpacity>
                   </View>
@@ -428,42 +548,77 @@ export default function AnaliseTecnica() {
           </TouchableOpacity>
         </View>
       ) : (
-        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 30 }}>
+        <ScrollView
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={{ paddingBottom: 30 }}
+        >
           <Text style={styles.formTitulo}>
             {modo === "editar" ? "Editar" : "Lançar"} Análise Técnica
           </Text>
 
           <Text style={styles.label}>Talhão Vinculado:</Text>
-          <TouchableOpacity style={styles.selector} onPress={() => AbrirModal("talhao")}>
-            <Text style={tal_codigo ? styles.selectorTextSelected : styles.selectorTextPlaceholder}>
+          <TouchableOpacity
+            style={styles.selector}
+            onPress={() => AbrirModal("talhao")}
+          >
+            <Text
+              style={
+                tal_codigo
+                  ? styles.selectorTextSelected
+                  : styles.selectorTextPlaceholder
+              }
+            >
               {tal_descricao}
             </Text>
             <FontAwesome name="caret-down" size={18} color="#666" />
           </TouchableOpacity>
 
           <Text style={styles.label}>Safra Vinculada:</Text>
-          <TouchableOpacity style={styles.selector} onPress={() => AbrirModal("safra")}>
-            <Text style={saf_codigo ? styles.selectorTextSelected : styles.selectorTextPlaceholder}>
+          <TouchableOpacity
+            style={styles.selector}
+            onPress={() => AbrirModal("safra")}
+          >
+            <Text
+              style={
+                saf_codigo
+                  ? styles.selectorTextSelected
+                  : styles.selectorTextPlaceholder
+              }
+            >
               {saf_descricao}
             </Text>
             <FontAwesome name="caret-down" size={18} color="#666" />
           </TouchableOpacity>
 
           <Text style={styles.label}>Técnico / Usuário Responsável:</Text>
-          <TouchableOpacity style={styles.selector} onPress={() => AbrirModal("usuario")}>
-            <Text style={usu_codigo ? styles.selectorTextSelected : styles.selectorTextPlaceholder}>
+          <TouchableOpacity
+            style={styles.selector}
+            onPress={() => AbrirModal("usuario")}
+          >
+            <Text
+              style={
+                usu_codigo
+                  ? styles.selectorTextSelected
+                  : styles.selectorTextPlaceholder
+              }
+            >
               {usu_login}
             </Text>
             <FontAwesome name="caret-down" size={18} color="#666" />
           </TouchableOpacity>
 
-          <Text style={styles.label}>Foto da Folha para Análise de IA (opcional):</Text>
+          <Text style={styles.label}>
+            Foto da Folha para Análise de IA (opcional):
+          </Text>
           <View style={styles.imagePickerContainer}>
             <TouchableOpacity style={styles.imagePickerBtn} onPress={TirarFoto}>
               <Text style={styles.imagePickerBtnText}>📸 Tirar Foto</Text>
             </TouchableOpacity>
 
-            <TouchableOpacity style={styles.imagePickerBtn} onPress={EscolherGaleria}>
+            <TouchableOpacity
+              style={styles.imagePickerBtn}
+              onPress={EscolherGaleria}
+            >
               <Text style={styles.imagePickerBtnText}>🖼️ Galeria</Text>
             </TouchableOpacity>
           </View>
@@ -477,31 +632,55 @@ export default function AnaliseTecnica() {
 
           {imagensSelecionadas.length > 0 && (
             <View style={styles.imagensListContainer}>
-              <Text style={styles.subLabel}>Imagens e Pareceres da IA ({imagensSelecionadas.length}):</Text>
+              <Text style={styles.subLabel}>
+                Imagens e Pareceres da IA ({imagensSelecionadas.length}):
+              </Text>
               {imagensSelecionadas.map((img, index) => (
                 <View key={index} style={styles.imageCard}>
-                  <RNImage source={{ uri: img.uri }} style={styles.imageCardPreview} />
+                  <RNImage
+                    source={{ uri: img.uri }}
+                    style={styles.imageCardPreview}
+                  />
                   <View style={styles.imageCardInfo}>
-                    <Text style={styles.imageCardTitle}>🍃 Folha #{index + 1}</Text>
+                    <Text style={styles.imageCardTitle}>
+                      🍃 Folha #{index + 1}
+                    </Text>
                     {img.disease !== "Imagem Salva" ? (
                       <>
                         <Text style={styles.imageCardText}>
-                          <Text style={{ fontWeight: "bold" }}>Doença: </Text>{img.disease}
+                          <Text style={{ fontWeight: "bold" }}>
+                            Sugestão Doença:{" "}
+                          </Text>
+                          {img.disease}
                         </Text>
                         <Text style={styles.imageCardText}>
-                          <Text style={{ fontWeight: "bold" }}>Confiança: </Text>{img.confidence}
+                          <Text style={{ fontWeight: "bold" }}>
+                            Severidade:{" "}
+                          </Text>
+                          {img.severity}
                         </Text>
                         <Text style={styles.imageCardText}>
-                          <Text style={{ fontWeight: "bold" }}>Sugestão: </Text>{img.recommendation}
+                          <Text style={{ fontWeight: "bold" }}>
+                            Confiança:{" "}
+                          </Text>
+                          {img.confidence}
+                        </Text>
+                        <Text style={styles.imageCardText}>
+                          <Text style={{ fontWeight: "bold" }}>Sugestão: </Text>
+                          {img.recommendation}
                         </Text>
                       </>
                     ) : (
-                      <Text style={styles.imageCardText}>Imagem salva no banco de dados.</Text>
+                      <Text style={styles.imageCardText}>
+                        Imagem salva no banco de dados.
+                      </Text>
                     )}
-                    <TouchableOpacity 
-                      style={styles.removerCardBtn} 
+                    <TouchableOpacity
+                      style={styles.removerCardBtn}
                       onPress={() => {
-                        setImagensSelecionadas(prev => prev.filter((_, i) => i !== index));
+                        setImagensSelecionadas((prev) =>
+                          prev.filter((_, i) => i !== index),
+                        );
                       }}
                     >
                       <Text style={styles.removerCardBtnText}>🗑️ Remover</Text>
@@ -513,29 +692,55 @@ export default function AnaliseTecnica() {
           )}
 
           <Text style={styles.label}>Observações Técnicas (opcional):</Text>
-          <TextInput 
-            style={[styles.input, { height: 120, textAlignVertical: "top" }]} 
-            placeholder="Digite detalhes observados no campo ou aguarde a análise de IA" 
+          <TextInput
+            style={[styles.input, { height: 120, textAlignVertical: "top" }]}
+            placeholder="Digite detalhes observados no campo ou aguarde a análise de IA"
             multiline
             numberOfLines={4}
-            value={observacao} 
-            onChangeText={setObservacao} 
+            value={observacao}
+            onChangeText={setObservacao}
           />
 
           <Text style={styles.label}>Status da Análise:</Text>
           <View style={styles.toggleRow}>
-            <TouchableOpacity 
-              style={[styles.toggleBtn, status === 1 ? styles.toggleBtnActive : styles.toggleBtnInactive]}
+            <TouchableOpacity
+              style={[
+                styles.toggleBtn,
+                status === 1
+                  ? styles.toggleBtnActive
+                  : styles.toggleBtnInactive,
+              ]}
               onPress={() => setStatus(1)}
             >
-              <Text style={status === 1 ? styles.toggleTextActive : styles.toggleTextInactive}>Finalizado</Text>
+              <Text
+                style={
+                  status === 1
+                    ? styles.toggleTextActive
+                    : styles.toggleTextInactive
+                }
+              >
+                Finalizado
+              </Text>
             </TouchableOpacity>
 
-            <TouchableOpacity 
-              style={[styles.toggleBtn, status === 0 ? styles.toggleBtnActive : styles.toggleBtnInactive]}
+            <TouchableOpacity
+              style={[
+                styles.toggleBtn,
+                status === 0
+                  ? styles.toggleBtnActive
+                  : styles.toggleBtnInactive,
+              ]}
               onPress={() => setStatus(0)}
             >
-              <Text style={status === 0 ? styles.toggleTextActive : styles.toggleTextInactive}>Em Andamento</Text>
+              <Text
+                style={
+                  status === 0
+                    ? styles.toggleTextActive
+                    : styles.toggleTextInactive
+                }
+              >
+                Em Andamento
+              </Text>
             </TouchableOpacity>
           </View>
 
@@ -557,20 +762,34 @@ export default function AnaliseTecnica() {
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
             <Text style={styles.modalTitulo}>
-              {modalType === "talhao" ? "Selecione o Talhão" : modalType === "safra" ? "Selecione a Safra" : "Selecione o Técnico"}
+              {modalType === "talhao"
+                ? "Selecione o Talhão"
+                : modalType === "safra"
+                  ? "Selecione a Safra"
+                  : "Selecione o Técnico"}
             </Text>
-            
+
             {modalType === "talhao" && (
               <FlatList
                 data={talhoes}
                 keyExtractor={(item) => item.tal_codigo.toString()}
                 renderItem={({ item }) => (
-                  <TouchableOpacity style={styles.modalItem} onPress={() => SelecionarItem(item)}>
-                    <Text style={styles.modalItemText}>{item.tal_descricao}</Text>
-                    <Text style={styles.modalItemSub}>Propriedade ID: {item.pro_codigo} • {item.tal_area_hectares} ha</Text>
+                  <TouchableOpacity
+                    style={styles.modalItem}
+                    onPress={() => SelecionarItem(item)}
+                  >
+                    <Text style={styles.modalItemText}>
+                      {item.tal_descricao}
+                    </Text>
+                    <Text style={styles.modalItemSub}>
+                      Propriedade ID: {item.pro_codigo} •{" "}
+                      {item.tal_area_hectares} ha
+                    </Text>
                   </TouchableOpacity>
                 )}
-                ItemSeparatorComponent={() => <View style={styles.modalSeparator} />}
+                ItemSeparatorComponent={() => (
+                  <View style={styles.modalSeparator} />
+                )}
               />
             )}
 
@@ -579,12 +798,21 @@ export default function AnaliseTecnica() {
                 data={safras}
                 keyExtractor={(item) => item.saf_codigo.toString()}
                 renderItem={({ item }) => (
-                  <TouchableOpacity style={styles.modalItem} onPress={() => SelecionarItem(item)}>
-                    <Text style={styles.modalItemText}>{item.saf_descricao}</Text>
-                    <Text style={styles.modalItemSub}>Status: {item.saf_status === 1 ? "Ativa" : "Inativa"}</Text>
+                  <TouchableOpacity
+                    style={styles.modalItem}
+                    onPress={() => SelecionarItem(item)}
+                  >
+                    <Text style={styles.modalItemText}>
+                      {item.saf_descricao}
+                    </Text>
+                    <Text style={styles.modalItemSub}>
+                      Status: {item.saf_status === 1 ? "Ativa" : "Inativa"}
+                    </Text>
                   </TouchableOpacity>
                 )}
-                ItemSeparatorComponent={() => <View style={styles.modalSeparator} />}
+                ItemSeparatorComponent={() => (
+                  <View style={styles.modalSeparator} />
+                )}
               />
             )}
 
@@ -593,17 +821,24 @@ export default function AnaliseTecnica() {
                 data={usuarios}
                 keyExtractor={(item) => item.usu_codigo.toString()}
                 renderItem={({ item }) => (
-                  <TouchableOpacity style={styles.modalItem} onPress={() => SelecionarItem(item)}>
+                  <TouchableOpacity
+                    style={styles.modalItem}
+                    onPress={() => SelecionarItem(item)}
+                  >
                     <Text style={styles.modalItemText}>{item.usu_login}</Text>
-                    <Text style={styles.modalItemSub}>Usuário ID: {item.usu_codigo}</Text>
+                    <Text style={styles.modalItemSub}>
+                      Usuário ID: {item.usu_codigo}
+                    </Text>
                   </TouchableOpacity>
                 )}
-                ItemSeparatorComponent={() => <View style={styles.modalSeparator} />}
+                ItemSeparatorComponent={() => (
+                  <View style={styles.modalSeparator} />
+                )}
               />
             )}
 
-            <TouchableOpacity 
-              style={styles.modalFecharBtn} 
+            <TouchableOpacity
+              style={styles.modalFecharBtn}
               onPress={() => setModalVisible(false)}
             >
               <Text style={styles.modalFecharText}>Fechar</Text>
@@ -644,9 +879,23 @@ const styles = StyleSheet.create({
   },
 
   itemTitulo: { fontWeight: "bold", fontSize: 13, color: "#888" },
-  itemSubtitulo: { fontSize: 18, fontWeight: "bold", color: "#333", marginTop: 2, marginBottom: 4 },
+  itemSubtitulo: {
+    fontSize: 18,
+    fontWeight: "bold",
+    color: "#333",
+    marginTop: 2,
+    marginBottom: 4,
+  },
   itemMeta: { fontSize: 13, color: "#666", marginTop: 2 },
-  itemObs: { fontSize: 14, color: "#444", fontStyle: "italic", marginTop: 6, backgroundColor: "#F5F5F5", padding: 8, borderRadius: 6 },
+  itemObs: {
+    fontSize: 14,
+    color: "#444",
+    fontStyle: "italic",
+    marginTop: 6,
+    backgroundColor: "#F5F5F5",
+    padding: 8,
+    borderRadius: 6,
+  },
   itemData: { fontSize: 11, color: "#999", marginTop: 8 },
 
   statusBadge: {
@@ -667,14 +916,14 @@ const styles = StyleSheet.create({
     fontWeight: "bold",
     textAlign: "center",
     marginBottom: 20,
-    color: "#2E7D32"
+    color: "#2E7D32",
   },
 
   label: {
     fontWeight: "bold",
     marginBottom: 6,
     color: "#333",
-    fontSize: 14
+    fontSize: 14,
   },
 
   input: {
@@ -684,7 +933,7 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     marginBottom: 12,
     backgroundColor: "#FFF",
-    fontSize: 16
+    fontSize: 16,
   },
 
   selector: {
