@@ -1,8 +1,8 @@
-import { FontAwesome } from '@expo/vector-icons';
+import { FontAwesome, MaterialCommunityIcons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { router } from "expo-router";
+import { router, Stack } from "expo-router";
 import React, { useState } from "react";
-import { Alert, Image, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
+import { Alert, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
 import { API_BASE_URL } from "../../constants/api";
 
 export default function Login() {
@@ -39,10 +39,14 @@ export default function Login() {
   }
 
   return (
-    <View style={styles.container}>    
-      <Image source={require("../../assets/images/icon.png")} style={styles.logo} /> 
+    <View style={styles.container}>
+      <Stack.Screen options={{ headerShown: false }} />
+
+      <View style={styles.leafBadge}>
+        <MaterialCommunityIcons name="leaf" size={44} color="#fff" />
+      </View>
       <Text style={styles.title}>🌱 FolhaSul</Text>
-      
+
       <Text style={styles.label}>Login:</Text>
       <TextInput
         style={styles.input}
@@ -79,11 +83,14 @@ const styles = StyleSheet.create({
     backgroundColor: "#F0F4F0",
     paddingHorizontal: 20,
   },
-  logo: {
-    width: 100,
-    height: 100,
-    marginBottom: 10,
-    borderRadius: 20,
+  leafBadge: {
+    width: 90,
+    height: 90,
+    borderRadius: 45,
+    backgroundColor: "#2E7D32",
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: 12,
   },
   title: {
     fontSize: 28,
