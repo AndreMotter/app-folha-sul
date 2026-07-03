@@ -46,6 +46,7 @@ export default function AnaliseTecnica() {
     Array<{
       uri: string;
       base64: string;
+      nome_arquivo: string;
       disease: string;
       confidence: string;
       severity: string;
@@ -123,6 +124,7 @@ export default function AnaliseTecnica() {
       const novaImagem = {
         uri: imagemTratada.uri,
         base64: imagemTratada.base64 ?? "",
+        nome_arquivo: `analise_folha_${imagensSelecionadas.length + 1}_${Date.now()}.jpg`,
         disease: aiResult.disease,
         confidence: aiResult.confidence,
         severity: aiResult.severity,
@@ -255,8 +257,10 @@ export default function AnaliseTecnica() {
         item.imagens.map((img: any) => ({
           uri: `data:image/jpeg;base64,${img.ati_imagem}`,
           base64: img.ati_imagem,
-          disease: "Imagem Salva",
+          nome_arquivo: img.ati_nome_arquivo || "",
+          disease: "",
           confidence: "",
+          severity: img.ati_percentual_severidade != null ? `${img.ati_percentual_severidade}%` : "",
           recommendation: "",
         })),
       );
@@ -315,11 +319,15 @@ export default function AnaliseTecnica() {
     };
 
     if (imagensSelecionadas.length > 0) {
-      payload.imagens = imagensSelecionadas.map((img, idx) => ({
-        ati_imagem: img.base64,
-        ati_nome_arquivo: `analise_${par_codigo}_folha_${idx + 1}_${Date.now()}.jpg`,
-        ati_tipo_arquivo: "image/jpeg",
-      }));
+      payload.imagens = imagensSelecionadas.map((img, idx) => {
+        const severidadeNumero = parseFloat(String(img.severity ?? "").replace("%", "").replace(",", "."));
+        return {
+          ati_imagem: img.base64,
+          ati_nome_arquivo: img.nome_arquivo || `analise_folha_${idx + 1}_${Date.now()}.jpg`,
+          ati_tipo_arquivo: "image/jpeg",
+          ati_percentual_severidade: isNaN(severidadeNumero) ? null : severidadeNumero,
+        };
+      });
     }
 
     try {
@@ -511,13 +519,20 @@ export default function AnaliseTecnica() {
                           contentContainerStyle={{ gap: 8 }}
                         >
                           {item.imagens.map((img: any, idx: number) => (
-                            <RNImage
-                              key={idx}
-                              source={{
-                                uri: `data:image/jpeg;base64,${img.ati_imagem}`,
-                              }}
-                              style={styles.itemThumbnailSmall}
-                            />
+                            <View key={idx} style={{ alignItems: "center", width: 92 }}>
+                              <RNImage
+                                source={{
+                                  uri: `data:image/jpeg;base64,${img.ati_imagem}`,
+                                }}
+                                style={styles.itemThumbnailSmall}
+                              />
+                              <Text style={{ fontSize: 11, fontWeight: "bold", color: "#2E7D32", marginTop: 2 }}>
+                                Sev: {img.ati_percentual_severidade != null ? `${img.ati_percentual_severidade}%` : "-"}
+                              </Text>
+                              <Text style={{ fontSize: 9, color: "#777" }} numberOfLines={1}>
+                                {img.ati_nome_arquivo || ""}
+                              </Text>
+                            </View>
                           ))}
                         </ScrollView>
                       ) : null}
@@ -656,19 +671,23 @@ export default function AnaliseTecnica() {
                     <Text style={styles.imageCardTitle}>
                       🍃 Folha #{index + 1}
                     </Text>
-                    {img.disease !== "Imagem Salva" ? (
+                    {img.nome_arquivo ? (
+                      <Text style={styles.imageCardText} numberOfLines={1}>
+                        <Text style={{ fontWeight: "bold" }}>Arquivo: </Text>
+                        {img.nome_arquivo}
+                      </Text>
+                    ) : null}
+                    <Text style={styles.imageCardText}>
+                      <Text style={{ fontWeight: "bold" }}>Severidade: </Text>
+                      {img.severity || "-"}
+                    </Text>
+                    {img.disease ? (
                       <>
                         <Text style={styles.imageCardText}>
                           <Text style={{ fontWeight: "bold" }}>
                             Sugestão Doença:{" "}
                           </Text>
                           {img.disease}
-                        </Text>
-                        <Text style={styles.imageCardText}>
-                          <Text style={{ fontWeight: "bold" }}>
-                            Severidade:{" "}
-                          </Text>
-                          {img.severity}
                         </Text>
                         <Text style={styles.imageCardText}>
                           <Text style={{ fontWeight: "bold" }}>
@@ -681,11 +700,7 @@ export default function AnaliseTecnica() {
                           {img.recommendation}
                         </Text>
                       </>
-                    ) : (
-                      <Text style={styles.imageCardText}>
-                        Imagem salva no banco de dados.
-                      </Text>
-                    )}
+                    ) : null}
                     <TouchableOpacity
                       style={styles.removerCardBtn}
                       onPress={() => {
